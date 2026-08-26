@@ -19,6 +19,12 @@
       "title": "Tuya Smart",
       "description": "Manage all available devices",
       "mode": "view"
+    },
+    {
+      "name": "menubar",
+      "title": "Tuya Smart Menu Bar",
+      "description": "Toggle your pinned switches from the menu bar",
+      "mode": "menu-bar"
     }
   ],
   "preferences": [
