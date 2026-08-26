@@ -102,5 +102,25 @@
   ],
   "overrides": {
     "axios": "^1.20.0"
+  },
+  "tools": [
+    {
+      "name": "list-devices",
+      "title": "List Devices",
+      "description": "List the Tuya devices on the account with their switches and current state"
+    },
+    {
+      "name": "toggle-switch",
+      "title": "Toggle Switch",
+      "description": "Turn a switch on a Tuya device on or off"
+    },
+    {
+      "name": "set-brightness",
+      "title": "Set Brightness",
+      "description": "Set the brightness or colour temperature of a Tuya light as a percentage"
+    }
+  ],
+  "ai": {
+    "instructions": "Device names come from the Tuya app and are matched loosely. When a request is ambiguous, call list-devices first and ask the user which device they meant rather than guessing. Brightness and colour temperature are always expressed as a percentage from 0 to 100."
   }
 }
