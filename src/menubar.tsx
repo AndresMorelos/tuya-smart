@@ -3,8 +3,8 @@ import { useCachedPromise, useCachedState } from "@raycast/utils";
 import { controlDevice, loadDevicesWithFallback } from "./utils/deviceSource";
 import { describeError } from "./utils/functions";
 import { Device, FunctionItem } from "./utils/interfaces";
-import { extractSwitches, switchKey } from "./utils/filters";
-import { cleanName } from "./utils/deviceSemantics";
+import { extractSwitches, isSwitchStatus, switchKey } from "./utils/filters";
+import { classifyDevice, cleanName, needsAttention, statusLine } from "./utils/deviceSemantics";
 
 /**
  * A menu bar command has no view, so `showToast` renders nowhere. Every outcome here
@@ -24,14 +24,25 @@ export default function MenuBarCommand() {
     (cachedDevices ?? []).find((device) => device.id === deviceId)?.status?.find((status) => status.code === code)
       ?.name;
 
-  // Pinning is per device; the menu bar exposes the switches those devices carry.
+  // Pinning is per device; readings come from the live list so the menu is not stale.
   const pinnedIds = new Set((cachedDevices ?? []).filter((device) => device.pinned).map((device) => device.id));
-  const pinned = extractSwitches(devices).filter(({ device }) => pinnedIds.has(device.id));
-  const pinnedWithoutSwitches = (cachedDevices ?? []).filter(
-    (device) => pinnedIds.has(device.id) && extractSwitches([device]).length === 0,
-  );
+  const pinnedDevices = devices.filter((device) => pinnedIds.has(device.id));
 
-  const onCount = pinned.filter(({ status }) => status.value === true).length;
+  const controls = pinnedDevices.filter((device) => classifyDevice(device) === "control");
+  const sensors = pinnedDevices.filter((device) => classifyDevice(device) === "sensor");
+  const locks = pinnedDevices.filter((device) => classifyDevice(device) === "lock");
+
+  const switches = extractSwitches(controls);
+  const onCount = switches.filter(({ status }) => status.value === true).length;
+  const attention = pinnedDevices.some(needsAttention);
+
+  const openMain = async () => {
+    try {
+      await launchCommand({ name: "index", type: LaunchType.UserInitiated });
+    } catch (error) {
+      await showHUD(describeError(error));
+    }
+  };
 
   const toggle = async (device: Device, status: FunctionItem) => {
     const next = !status.value;
@@ -61,21 +72,44 @@ export default function MenuBarCommand() {
     }
   };
 
+  const readOnlyItem = (device: Device, icon: Icon) => (
+    <MenuBarExtra.Item
+      key={device.id}
+      title={cleanName(device.name)}
+      subtitle={statusLine(device)}
+      tooltip={statusLine(device)}
+      icon={{
+        source: needsAttention(device) ? Icon.Warning : icon,
+        tintColor: needsAttention(device) ? Color.Orange : device.online ? Color.Blue : Color.SecondaryText,
+      }}
+      onAction={openMain}
+    />
+  );
+
   return (
     <MenuBarExtra
-      icon={{ source: Icon.LightBulb, tintColor: onCount > 0 ? Color.Yellow : Color.SecondaryText }}
+      icon={{
+        source: attention ? Icon.Warning : Icon.LightBulb,
+        tintColor: attention ? Color.Orange : onCount > 0 ? Color.Yellow : Color.SecondaryText,
+      }}
       isLoading={isLoading}
       tooltip="Tuya Smart"
-      title={pinned.length > 0 ? `${onCount}/${pinned.length}` : undefined}
+      title={switches.length > 0 ? `${onCount}/${switches.length}` : undefined}
     >
-      {pinned.length > 0 && (
-        <MenuBarExtra.Section title="Pinned Switches">
-          {pinned.map(({ device, status }) => (
+      {switches.length > 0 && (
+        <MenuBarExtra.Section title="Switches">
+          {switches.map(({ device, status }) => (
             <MenuBarExtra.Item
               key={switchKey(device.id, status.code)}
               title={cleanName(device.name)}
               subtitle={
-                device.online ? (cachedNameFor(device.id, status.code) ?? status.name ?? status.code) : "Offline"
+                device.online
+                  ? (device.status ?? []).filter(isSwitchStatus).length > 1
+                    ? (cachedNameFor(device.id, status.code) ?? status.name ?? status.code)
+                    : status.value
+                      ? "On"
+                      : "Off"
+                  : "Offline"
               }
               icon={{
                 source: status.value ? Icon.CircleFilled : Icon.Circle,
@@ -87,27 +121,21 @@ export default function MenuBarCommand() {
         </MenuBarExtra.Section>
       )}
 
-      {pinnedWithoutSwitches.length > 0 && (
-        <MenuBarExtra.Section title="Pinned, Nothing to Toggle">
-          {pinnedWithoutSwitches.map((device) => (
-            <MenuBarExtra.Item
-              key={device.id}
-              title={cleanName(device.name)}
-              subtitle="Sensor"
-              icon={{ source: Icon.Eye, tintColor: Color.SecondaryText }}
-              onAction={() => launchCommand({ name: "index", type: LaunchType.UserInitiated })}
-            />
-          ))}
+      {sensors.length > 0 && (
+        <MenuBarExtra.Section title="Sensors">
+          {sensors.map((device) => readOnlyItem(device, Icon.Eye))}
         </MenuBarExtra.Section>
       )}
 
-      {pinned.length === 0 && pinnedWithoutSwitches.length === 0 && (
+      {locks.length > 0 && (
+        <MenuBarExtra.Section title="Locks">
+          {locks.map((device) => readOnlyItem(device, Icon.Lock))}
+        </MenuBarExtra.Section>
+      )}
+
+      {pinnedDevices.length === 0 && (
         <MenuBarExtra.Section title="No Pinned Devices">
-          <MenuBarExtra.Item
-            title="Pin a Device in Tuya Smart"
-            icon={Icon.Pin}
-            onAction={() => launchCommand({ name: "index", type: LaunchType.UserInitiated })}
-          />
+          <MenuBarExtra.Item title="Pin a Device in Tuya Smart" icon={Icon.Pin} onAction={openMain} />
         </MenuBarExtra.Section>
       )}
 
@@ -120,17 +148,7 @@ export default function MenuBarCommand() {
             await showHUD("Refreshing Tuya devices");
           }}
         />
-        <MenuBarExtra.Item
-          title="Open Tuya Smart"
-          icon={Icon.AppWindow}
-          onAction={async () => {
-            try {
-              await launchCommand({ name: "index", type: LaunchType.UserInitiated });
-            } catch (error) {
-              await showHUD(describeError(error));
-            }
-          }}
-        />
+        <MenuBarExtra.Item title="Open Tuya Smart" icon={Icon.AppWindow} onAction={openMain} />
       </MenuBarExtra.Section>
     </MenuBarExtra>
   );

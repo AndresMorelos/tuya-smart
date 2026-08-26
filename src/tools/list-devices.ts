@@ -1,5 +1,5 @@
 import { loadDevicesWithFallback } from "../utils/deviceSource";
-import { extractSwitches } from "../utils/filters";
+import { describeDeviceForAI } from "../utils/deviceSemantics";
 
 type Input = {
   /**
@@ -10,8 +10,9 @@ type Input = {
 };
 
 /**
- * Lists the Tuya devices on the account together with their switch data points,
- * so a later call knows which device name and switch code to act on.
+ * Lists the Tuya devices on the account with their current state already formatted:
+ * switches and whether they are on, sensor readings such as temperature, humidity and
+ * contact state, remaining battery, and anything needing attention.
  */
 export default async function tool(input: Input) {
   const { devices, source } = await loadDevicesWithFallback();
@@ -19,17 +20,7 @@ export default async function tool(input: Input) {
 
   const filtered = needle ? devices.filter((device) => device.name.toLowerCase().includes(needle)) : devices;
 
-  const listed = filtered.map((device) => ({
-    id: device.id,
-    name: device.name,
-    category: device.category,
-    online: device.online,
-    switches: extractSwitches([device]).map(({ status }) => ({
-      code: status.code,
-      name: status.name ?? status.code,
-      isOn: status.value === true,
-    })),
-  }));
+  const listed = filtered.map(describeDeviceForAI);
 
   return {
     // "cache" means the Tuya cloud was unreachable and this is the last known state.

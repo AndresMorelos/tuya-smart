@@ -265,3 +265,70 @@ export function summaryOf(device: Device): string {
 export function cleanName(name: string): string {
   return (name ?? "").replace(/\s+/g, " ").trim();
 }
+
+/**
+ * One line describing a device where there is no room for accessories, such as a menu
+ * bar item: what it reads, how much battery it has left, and whether it is reachable.
+ */
+export function statusLine(device: Device): string {
+  const parts: string[] = [];
+
+  const alarms = alarmsOf(device);
+  if (alarms.length > 0) parts.push(alarms.join(", "));
+
+  const summary = summaryOf(device);
+  if (summary) parts.push(summary);
+
+  const battery = batteryOf(device);
+  if (battery !== undefined) parts.push(`${battery}%`);
+
+  if (!device.online) parts.push("Offline");
+
+  return parts.join(" · ");
+}
+
+/** True when the device is reporting something the user would want to know about now. */
+export function needsAttention(device: Device): boolean {
+  if (alarmsOf(device).length > 0) return true;
+  return (device.status ?? []).some((status) => status.code === "doorcontact_state" && status.value === true);
+}
+
+export interface DeviceDescription {
+  id: string;
+  name: string;
+  kind: DeviceKind;
+  online: boolean;
+  state: string;
+  batteryPercent?: number;
+  needsAttention?: string[];
+  switches: { code: string; name: string; isOn: boolean }[];
+  readings: { name: string; value: string }[];
+}
+
+/**
+ * Everything an assistant needs to answer questions about a device, with values already
+ * formatted. Raw data points are useless to answer with: a battery reading of 294 on
+ * `va_temperature` means 29.4 degrees, not a number worth repeating.
+ */
+export function describeDeviceForAI(device: Device): DeviceDescription {
+  const unit = temperatureUnitOf(device);
+  const alarms = alarmsOf(device);
+  const battery = batteryOf(device);
+
+  return {
+    id: device.id,
+    name: cleanName(device.name),
+    // The raw category is a Tuya code such as "mcs"; `kind` is the useful classification.
+    kind: classifyDevice(device),
+    online: Boolean(device.online),
+    state: summaryOf(device),
+    ...(battery !== undefined ? { batteryPercent: battery } : {}),
+    ...(alarms.length > 0 ? { needsAttention: alarms } : {}),
+    switches: (device.status ?? [])
+      .filter(isSwitchStatus)
+      .map((status) => ({ code: status.code, name: statusLabel(status), isOn: status.value === true })),
+    readings: meaningfulStatuses(device)
+      .filter((status) => !isSwitchStatus(status) && status.code !== "temp_unit_convert")
+      .map((status) => ({ name: statusLabel(status), value: formatStatusValue(status, unit) })),
+  };
+}

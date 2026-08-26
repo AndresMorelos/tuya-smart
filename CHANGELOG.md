@@ -5,6 +5,12 @@
 - The details side panel is now off by default and toggles with Cmd+Shift+D. It used
   to be always open, which squeezed the list column and cut off the state, battery and
   offline labels.
+- The menu bar now shows sensors and locks with their actual readings, such as a
+  contact sensor's open or closed state, temperature and remaining battery, rather than
+  listing them with nothing useful attached. Its icon warns when something needs
+  attention, like a window left open.
+- AI tools now report sensor readings and battery level, so questions like how much
+  battery a sensor has left can be answered instead of only whether it is online.
 - Fixed menu bar items appearing to do nothing when clicked. A menu bar command has no
   view, so failures were being reported to a toast that could never be displayed.
 - Redesigned the device list. Devices are grouped by what they do (Controls, Sensors,

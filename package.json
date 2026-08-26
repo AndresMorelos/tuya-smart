@@ -108,7 +108,7 @@
     {
       "name": "list-devices",
       "title": "List Devices",
-      "description": "List the Tuya devices on the account with their switches and current state"
+      "description": "List the Tuya devices on the account with their current state: switches, sensor readings, battery level and anything needing attention"
     },
     {
       "name": "toggle-switch",
@@ -122,6 +122,6 @@
     }
   ],
   "ai": {
-    "instructions": "Device names come from the Tuya app and are matched loosely. When a request is ambiguous, call list-devices first and ask the user which device they meant rather than guessing. Brightness and colour temperature are always expressed as a percentage from 0 to 100."
+    "instructions": "Device names come from the Tuya app and are matched loosely. When a request is ambiguous, call list-devices first and ask the user which device they meant rather than guessing. list-devices already returns formatted state: switches with their on/off value, sensor readings such as temperature, humidity and contact state, remaining battery as batteryPercent, and a needsAttention list. Answer questions about readings and battery from that data instead of saying only whether a device is online. Brightness and colour temperature are always expressed as a percentage from 0 to 100."
   }
 }
