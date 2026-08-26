@@ -293,42 +293,137 @@ export function needsAttention(device: Device): boolean {
   return (device.status ?? []).some((status) => status.code === "doorcontact_state" && status.value === true);
 }
 
+/**
+ * Never handed to an assistant. These are credentials and locators, not device state:
+ * `local_key` grants local control of the device, the lock blobs carry credential
+ * material, and the address fields say where the user physically lives.
+ * Everything else about a device is fair game.
+ */
+const SENSITIVE_CODES = new Set([
+  "check_code_set",
+  "ble_unlock_check",
+  "remote_pd_setkey_check",
+  "remote_no_dp_key",
+  "unlock_method_create",
+  "unlock_method_delete",
+  "unlock_method_modify",
+  "password",
+  "temporary_password_creat",
+  "lock_record",
+  "record",
+]);
+
+export function isSensitiveStatus(status: FunctionItem): boolean {
+  return SENSITIVE_CODES.has(status.code);
+}
+
 export interface DeviceDescription {
   id: string;
   name: string;
+  /** A ready-made sentence, so an assistant can answer without re-deriving wording. */
+  summary: string;
   kind: DeviceKind;
   online: boolean;
   state: string;
+  product?: string;
+  model?: string;
+  tuyaCategoryCode?: string;
   batteryPercent?: number;
   needsAttention?: string[];
   switches: { code: string; name: string; isOn: boolean }[];
-  readings: { name: string; value: string }[];
+  /** Every non-sensitive data point, formatted for reading and raw for reasoning. */
+  readings: { code: string; name: string; value: string; raw: boolean | number | string | null }[];
+  omitted?: string;
 }
 
 /**
- * Everything an assistant needs to answer questions about a device, with values already
- * formatted. Raw data points are useless to answer with: a battery reading of 294 on
- * `va_temperature` means 29.4 degrees, not a number worth repeating.
+ * Everything an assistant needs to answer questions about a device. Values are given
+ * both formatted and raw: a `va_temperature` of 294 means 29.4 degrees, so answering
+ * with the raw number would be wrong, but the raw value still allows comparisons.
+ * Only credentials and physical locators are withheld.
  */
 export function describeDeviceForAI(device: Device): DeviceDescription {
   const unit = temperatureUnitOf(device);
   const alarms = alarmsOf(device);
   const battery = batteryOf(device);
+  const withheld = (device.status ?? []).filter(isSensitiveStatus).length;
 
   return {
     id: device.id,
     name: cleanName(device.name),
+    summary: describeDeviceSentence(device),
     // The raw category is a Tuya code such as "mcs"; `kind` is the useful classification.
     kind: classifyDevice(device),
     online: Boolean(device.online),
     state: summaryOf(device),
     ...(battery !== undefined ? { batteryPercent: battery } : {}),
     ...(alarms.length > 0 ? { needsAttention: alarms } : {}),
+    ...(device.product_name ? { product: device.product_name } : {}),
+    ...(device.model ? { model: device.model } : {}),
+    ...(device.category ? { tuyaCategoryCode: String(device.category) } : {}),
     switches: (device.status ?? [])
       .filter(isSwitchStatus)
       .map((status) => ({ code: status.code, name: statusLabel(status), isOn: status.value === true })),
-    readings: meaningfulStatuses(device)
-      .filter((status) => !isSwitchStatus(status) && status.code !== "temp_unit_convert")
-      .map((status) => ({ name: statusLabel(status), value: formatStatusValue(status, unit) })),
+    readings: (device.status ?? [])
+      .filter((status) => !isSwitchStatus(status) && !isSensitiveStatus(status))
+      .map((status) => ({
+        code: status.code,
+        name: statusLabel(status),
+        value: formatStatusValue(status, unit),
+        raw: status.value ?? null,
+      })),
+    ...(withheld > 0
+      ? {
+          omitted: `${withheld} data ${withheld === 1 ? "point was" : "points were"} withheld because they hold lock credentials.`,
+        }
+      : {}),
   };
+}
+
+const KIND_NOUNS: Record<DeviceKind, string> = {
+  control: "switch",
+  sensor: "sensor",
+  lock: "lock",
+};
+
+/** A plain sentence describing the device, for an assistant to quote directly. */
+export function describeDeviceSentence(device: Device): string {
+  const name = cleanName(device.name);
+  const noun = KIND_NOUNS[classifyDevice(device)];
+  const state = summaryOf(device);
+  const battery = batteryOf(device);
+  const alarms = alarmsOf(device);
+
+  let sentence = state ? `${name} is a ${noun} and is currently ${state}` : `${name} is a ${noun}`;
+
+  if (battery !== undefined) sentence += `, battery at ${battery}%`;
+  if (!device.online) sentence += ", but it is offline so this is the last known reading";
+  sentence += ".";
+  if (alarms.length > 0) sentence += ` It needs attention: ${alarms.join(", ")}.`;
+
+  return sentence;
+}
+
+/** A one-line overview of a whole account, so an assistant can open with it. */
+export function describeAccount(devices: Device[]): string {
+  if (devices.length === 0) return "No devices are set up on this Tuya account.";
+
+  const kinds = devices.map(classifyDevice);
+  const controls = devices.filter((_, i) => kinds[i] === "control");
+  const switchesOn = controls.filter((device) =>
+    (device.status ?? []).some((status) => isSwitchStatus(status) && status.value === true),
+  ).length;
+
+  const parts: string[] = [];
+  if (controls.length > 0)
+    parts.push(`${controls.length} switchable ${controls.length === 1 ? "device" : "devices"} (${switchesOn} on)`);
+  const sensors = kinds.filter((k) => k === "sensor").length;
+  if (sensors > 0) parts.push(`${sensors} ${sensors === 1 ? "sensor" : "sensors"}`);
+  const locks = kinds.filter((k) => k === "lock").length;
+  if (locks > 0) parts.push(`${locks} ${locks === 1 ? "lock" : "locks"}`);
+
+  const offline = devices.filter((device) => !device.online).length;
+  const tail = offline > 0 ? `; ${offline} of them are offline` : "";
+
+  return `${parts.join(", ")}${tail}.`;
 }

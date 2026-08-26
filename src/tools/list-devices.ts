@@ -1,5 +1,5 @@
 import { loadDevicesWithFallback } from "../utils/deviceSource";
-import { describeDeviceForAI } from "../utils/deviceSemantics";
+import { describeAccount, describeDeviceForAI } from "../utils/deviceSemantics";
 
 type Input = {
   /**
@@ -23,6 +23,7 @@ export default async function tool(input: Input) {
   const listed = filtered.map(describeDeviceForAI);
 
   return {
+    overview: describeAccount(filtered),
     // "cache" means the Tuya cloud was unreachable and this is the last known state.
     source,
     devices: listed,

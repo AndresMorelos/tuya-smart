@@ -9,6 +9,13 @@
   contact sensor's open or closed state, temperature and remaining battery, rather than
   listing them with nothing useful attached. Its icon warns when something needs
   attention, like a window left open.
+- AI tools now answer in plain sentences and act on a request to switch something
+  instead of listing devices and asking which one was meant.
+- AI tools now see every non-sensitive detail of a device, both formatted for reading
+  and raw for comparison. Lock credentials, device keys and the home address are
+  deliberately withheld.
+- Turning a device on no longer asks for confirmation; turning one off still does,
+  since an account can include a fridge or a router.
 - AI tools now report sensor readings and battery level, so questions like how much
   battery a sensor has left can be answered instead of only whether it is online.
 - Fixed menu bar items appearing to do nothing when clicked. A menu bar command has no
