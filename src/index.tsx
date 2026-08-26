@@ -1,115 +1,81 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCachedState } from "@raycast/utils";
 import { getDevices, getCategories } from "./utils/tuyaConnector";
 import { DeviceCategory, Device } from "./utils/interfaces";
 import { DeviceList } from "./components/list";
 import { getCategory, getDeviceFunctions, isPinned, ShowToastError } from "./utils/functions";
-import { DeviceOnlineFilterDropdown, DeviceOnlineFilterType, placeholder } from "./components/filter";
+import { DeviceOnlineFilterDropdown, placeholder } from "./components/filter";
+import { DeviceOnlineFilterType, filterDevices, switchKey } from "./utils/filters";
 
 export default function Command() {
-  // States
   const [filter, setFilter] = useState(DeviceOnlineFilterType.all);
   const [isLoading, setIsLoading] = useState(true);
   const [devices, setDevices] = useCachedState<Device[]>("devices", []);
   const [categories, setCategories] = useCachedState<DeviceCategory[]>("categories", []);
   const [pinnedSwitches, setPinnedSwitches] = useCachedState<string[]>("pinnedSwitches", []);
 
+  // Keeps the effect below from reading a stale device list through its closure.
+  const devicesRef = useRef(devices);
+  devicesRef.current = devices;
+
   useEffect(() => {
-    const getDeviceCategories = async () => {
-      const categories = await getCategories();
-
-      setCategories(() => {
-        return categories.result;
+    getCategories()
+      .then((result) => setCategories(result ?? []))
+      .catch((error) => {
+        setIsLoading(false);
+        ShowToastError(error);
       });
-    };
-
-    getDeviceCategories().catch((error) => {
-      setIsLoading(false);
-      setCategories(() => {
-        return [];
-      });
-      setDevices(() => {
-        return [];
-      });
-      ShowToastError(error);
-    });
   }, []);
 
   useEffect(() => {
+    if (!categories || categories.length === 0) {
+      return;
+    }
+
     const getAllDevices = async () => {
-      const newDevicesinfo = await getDevices();
+      const newDevicesInfo = await getDevices();
+      const previousDevices = devicesRef.current ?? [];
 
-      const populateDevicesPromises = newDevicesinfo.map(async (device) => {
-        const oldDeviceInfo = devices.find((deviceInfo) => deviceInfo.id === device.id);
-        const functions = await getDeviceFunctions(device, oldDeviceInfo);
-
-        return {
+      const devicesPopulated = await Promise.all(
+        newDevicesInfo.map(async (device) => ({
           ...device,
-          status: functions,
-        };
-      });
+          status: await getDeviceFunctions(
+            device,
+            previousDevices.find((deviceInfo) => deviceInfo.id === device.id),
+          ),
+        })),
+      );
 
-      const devicesPopulated = await Promise.all(populateDevicesPromises);
-
-      setDevices((prev) => {
-        const formatedDevices = devicesPopulated.map((device) => {
-          return {
-            ...device,
-            pinned: isPinned(device, prev),
-            category: getCategory(categories, device.category),
-          };
-        });
-
-        return formatedDevices;
-      });
+      setDevices((prev) =>
+        devicesPopulated.map((device) => ({
+          ...device,
+          pinned: isPinned(device, prev ?? []),
+          category: getCategory(categories, device.category),
+        })),
+      );
       setIsLoading(false);
     };
 
-    if (categories && categories.length > 0) {
-      getAllDevices().catch((error) => {
-        ShowToastError(error);
-      });
-    }
+    getAllDevices().catch((error) => {
+      setIsLoading(false);
+      ShowToastError(error);
+    });
   }, [categories]);
-
-  const finalDevices =
-    filter === DeviceOnlineFilterType.Online
-      ? devices.filter((device) => device.online)
-      : filter === DeviceOnlineFilterType.Offline
-        ? devices.filter((device) => !device.online)
-        : devices;
 
   return (
     <DeviceList
-      devices={finalDevices}
+      devices={filterDevices(devices ?? [], filter)}
       searchBarPlaceholder={placeholder(filter)}
       searchBarAccessory={<DeviceOnlineFilterDropdown onSelect={setFilter} />}
       isLoading={isLoading}
       filter={filter}
       pinnedSwitches={pinnedSwitches}
       onTogglePinSwitch={(deviceId, commandCode) => {
-        const key = `${deviceId}:${commandCode}`;
-        setPinnedSwitches((prev) => {
-          if (prev.includes(key)) {
-            return prev.filter((k) => k !== key);
-          }
-          return [...prev, key];
-        });
+        const key = switchKey(deviceId, commandCode);
+        setPinnedSwitches((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
       }}
       onAction={(device) => {
-        setDevices((prev) => {
-          const formatedDevices = prev.map((oldDevice) => {
-            if (device.id === oldDevice.id) {
-              return device;
-            }
-
-            return {
-              ...oldDevice,
-            };
-          });
-
-          return formatedDevices;
-        });
+        setDevices((prev) => (prev ?? []).map((oldDevice) => (device.id === oldDevice.id ? device : { ...oldDevice })));
       }}
     />
   );
