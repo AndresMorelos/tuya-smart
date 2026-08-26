@@ -1,34 +1,41 @@
 import type { JSX } from "react";
-import { Action, ActionPanel, Icon } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard } from "@raycast/api";
 import { Device, FunctionItem } from "../utils/interfaces";
 import { findBrightness, findColorTemp } from "../utils/lightFunctions";
+import { isSwitchStatus } from "../utils/filters";
+import { classifyDevice, cleanName } from "../utils/deviceSemantics";
 
 import { DeviceCommands } from "./deviceCommands";
 
 import * as Actions from "./actions";
 import RenameFunctionForm from "./renameFunction";
 
-export function DeviceActionPanel(props: {
-  device: Device;
-  showDetails: boolean;
-  onAction: (device: Device) => void;
-}): JSX.Element {
+/** Replaces one data point without mutating the device held in state. */
+export function withUpdatedStatus(device: Device, command: FunctionItem): Device {
+  return {
+    ...device,
+    status: (device.status ?? []).map((status) => (status.code === command.code ? command : status)),
+  };
+}
+
+export function DeviceActionPanel(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
   const device = props.device;
+  const switches = (device.status ?? []).filter(isSwitchStatus);
   const brightness = findBrightness(device);
   const colorTemp = findColorTemp(device);
+  const isControl = classifyDevice(device) === "control";
 
-  const applyCommandResult = ({ command }: Actions.CommandResult) =>
-    props.onAction({
-      ...device,
-      status: (device.status ?? []).map((status) => (status.code === command.code ? command : status)),
-    });
+  const apply = ({ command }: Actions.CommandResult) => props.onAction(withUpdatedStatus(device, command));
 
   return (
     <ActionPanel>
       <ActionPanel.Section>
-        {props.showDetails && (
+        {isControl && switches.length === 1 && (
+          <Actions.BooleanCommand device={device} command={switches[0]} onAction={apply} />
+        )}
+        {switches.length > 1 && (
           <Action.Push
-            title="Show Details"
+            title="Show Switches"
             icon={Icon.Document}
             target={<DeviceCommands device={device} onAction={props.onAction} />}
           />
@@ -43,7 +50,7 @@ export function DeviceActionPanel(props: {
               command={brightness}
               title="Brightness"
               icon={Icon.Sun}
-              onAction={applyCommandResult}
+              onAction={apply}
             />
           )}
           {colorTemp && (
@@ -52,11 +59,27 @@ export function DeviceActionPanel(props: {
               command={colorTemp}
               title="Colour Temperature"
               icon={Icon.Temperature}
-              onAction={applyCommandResult}
+              onAction={apply}
             />
           )}
         </ActionPanel.Section>
       )}
+      <ActionPanel.Section>
+        {switches.length === 1 && (
+          <Action.Push
+            title="Rename Switch"
+            icon={Icon.Pencil}
+            shortcut={Keyboard.Shortcut.Common.Edit}
+            target={<RenameFunctionForm deviceId={device.id} command={switches[0]} onAction={apply} />}
+          />
+        )}
+        <Action.CopyToClipboard title="Copy Device ID" content={device.id} shortcut={Keyboard.Shortcut.Common.Copy} />
+        <Action.CopyToClipboard
+          title="Copy Device Name"
+          content={cleanName(device.name)}
+          shortcut={Keyboard.Shortcut.Common.CopyName}
+        />
+      </ActionPanel.Section>
     </ActionPanel>
   );
 }
@@ -64,12 +87,8 @@ export function DeviceActionPanel(props: {
 export function CommandActionPanel(props: {
   device: Device;
   command: FunctionItem;
-  newName?: string;
   onAction: (props: Actions.CommandResult) => void;
-  onTogglePinSwitch?: (deviceId: string, commandCode: string) => void;
-  isPinned?: boolean;
 }): JSX.Element {
-  const deviceId = props.device.id;
   const commandValue = props.command.value;
   return (
     <ActionPanel>
@@ -94,18 +113,11 @@ export function CommandActionPanel(props: {
             onAction={props.onAction}
           />
         )}
-        {props.onTogglePinSwitch && props.isPinned !== undefined && (
-          <Actions.SwitchPinAction
-            deviceId={deviceId}
-            commandCode={props.command.code}
-            isPinned={props.isPinned}
-            onTogglePin={props.onTogglePinSwitch}
-          />
-        )}
         <Action.Push
           title="Rename"
           icon={Icon.Pencil}
-          target={<RenameFunctionForm deviceId={deviceId} command={props.command} onAction={props.onAction} />}
+          shortcut={Keyboard.Shortcut.Common.Edit}
+          target={<RenameFunctionForm deviceId={props.device.id} command={props.command} onAction={props.onAction} />}
         />
       </ActionPanel.Section>
     </ActionPanel>

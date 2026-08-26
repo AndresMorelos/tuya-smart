@@ -2,8 +2,19 @@ import { Color, Icon, List } from "@raycast/api";
 import type { JSX } from "react";
 import { formatActiveTime } from "../utils/functions";
 import { Device, FunctionItem } from "../utils/interfaces";
-import { CommandActionPanel, DeviceActionPanel } from "./actionPanels";
-import { DeviceOnlineFilterType, deviceKey, extractSwitches, switchKey } from "../utils/filters";
+import { DeviceActionPanel } from "./actionPanels";
+import { DeviceOnlineFilterType, deviceKey, isSwitchStatus } from "../utils/filters";
+import {
+  alarmsOf,
+  batteryOf,
+  classifyDevice,
+  cleanName,
+  formatStatusValue,
+  meaningfulStatuses,
+  statusLabel,
+  summaryOf,
+  temperatureUnitOf,
+} from "../utils/deviceSemantics";
 
 export interface DeviceListProps {
   isLoading: boolean;
@@ -13,40 +24,132 @@ export interface DeviceListProps {
   onSearchTextChange?: (q: string) => void;
   onAction: (device: Device) => void;
   filter: DeviceOnlineFilterType;
-  pinnedSwitches: string[];
-  onTogglePinSwitch: (deviceId: string, commandCode: string) => void;
 }
 
-export interface CommandListProps {
-  device: Device;
-  commands: FunctionItem[];
-  onAction: (device: Device) => void;
+function batteryIcon(level: number) {
+  if (level <= 20) return { source: Icon.BatteryDisabled, tintColor: Color.Red };
+  if (level <= 50) return { source: Icon.Battery, tintColor: Color.Yellow };
+  return { source: Icon.Battery, tintColor: Color.SecondaryText };
 }
 
-/** Replaces one status entry without mutating the device held in state. */
-function withUpdatedStatus(device: Device, command: FunctionItem): Device {
+function rowIcon(device: Device) {
+  const kind = classifyDevice(device);
+  const dim = !device.online;
+
+  if (kind === "lock") {
+    const unlocked = (device.status ?? []).find((s) => s.code === "lock_motor_state")?.value === true;
+    return {
+      source: unlocked ? Icon.LockUnlocked : Icon.Lock,
+      tintColor: dim ? Color.SecondaryText : unlocked ? Color.Orange : Color.Green,
+    };
+  }
+
+  if (kind === "sensor") {
+    const open = (device.status ?? []).find((s) => s.code === "doorcontact_state")?.value === true;
+    if (open) return { source: Icon.ExclamationMark, tintColor: dim ? Color.SecondaryText : Color.Orange };
+    return { source: Icon.Eye, tintColor: dim ? Color.SecondaryText : Color.Blue };
+  }
+
+  const on = (device.status ?? []).some((s) => isSwitchStatus(s) && s.value === true);
   return {
-    ...device,
-    status: (device.status ?? []).map((status) => (status.code === command.code ? command : status)),
+    source: on ? Icon.CircleFilled : Icon.Circle,
+    tintColor: dim ? Color.SecondaryText : on ? Color.Green : Color.Red,
   };
+}
+
+function accessoriesFor(device: Device): List.Item.Accessory[] {
+  const accessories: List.Item.Accessory[] = [];
+
+  for (const alarm of alarmsOf(device)) {
+    accessories.push({ tag: { value: alarm, color: Color.Red }, icon: Icon.Warning, tooltip: "Needs attention" });
+  }
+
+  const summary = summaryOf(device);
+  if (summary) accessories.push({ text: summary });
+
+  const battery = batteryOf(device);
+  if (battery !== undefined) {
+    accessories.push({ icon: batteryIcon(battery), text: `${battery}%`, tooltip: "Battery" });
+  }
+
+  if (!device.online) {
+    accessories.push({ tag: { value: "Offline", color: Color.SecondaryText }, tooltip: "Not reachable right now" });
+  }
+
+  return accessories;
+}
+
+function DeviceDetail(props: { device: Device }): JSX.Element {
+  const device = props.device;
+  const unit = temperatureUnitOf(device);
+  const alarms = alarmsOf(device);
+  const statuses = meaningfulStatuses(device).filter((s) => s.code !== "temp_unit_convert");
+
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          {alarms.length > 0 && (
+            <List.Item.Detail.Metadata.TagList title="Needs Attention">
+              {alarms.map((alarm) => (
+                <List.Item.Detail.Metadata.TagList.Item key={alarm} text={alarm} color={Color.Red} />
+              ))}
+            </List.Item.Detail.Metadata.TagList>
+          )}
+          <List.Item.Detail.Metadata.Label title="State" text={summaryOf(device) || "—"} icon={rowIcon(device)} />
+          <List.Item.Detail.Metadata.Label
+            title="Connection"
+            text={device.online ? "Online" : "Offline"}
+            icon={{
+              source: device.online ? Icon.Wifi : Icon.WifiDisabled,
+              tintColor: device.online ? Color.Green : Color.SecondaryText,
+            }}
+          />
+          <List.Item.Detail.Metadata.Separator />
+          {statuses.length > 0 && <List.Item.Detail.Metadata.Label title="Readings" />}
+          {statuses.map((status: FunctionItem) => (
+            <List.Item.Detail.Metadata.Label
+              key={status.code}
+              title={statusLabel(status)}
+              text={formatStatusValue(status, unit)}
+            />
+          ))}
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label title="Device" text={device.product_name || "—"} />
+          <List.Item.Detail.Metadata.Label title="Category" text={String(device.category ?? "—")} />
+          <List.Item.Detail.Metadata.Label title="Added" text={formatActiveTime(device.active_time)} />
+          <List.Item.Detail.Metadata.Label title="Id" text={device.id} />
+        </List.Item.Detail.Metadata>
+      }
+    />
+  );
+}
+
+export function DeviceRow(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
+  const device = props.device;
+  return (
+    <List.Item
+      title={cleanName(device.name)}
+      keywords={[String(device.category ?? ""), device.product_name ?? ""]}
+      icon={rowIcon(device)}
+      accessories={accessoriesFor(device)}
+      detail={<DeviceDetail device={device} />}
+      actions={<DeviceActionPanel device={device} onAction={props.onAction} />}
+    />
+  );
 }
 
 export function DeviceList(props: DeviceListProps): JSX.Element {
   const devices = props.devices ?? [];
-  const pinnedDevices = devices.filter((device) => device.pinned);
-  const unpinnedDevices = devices.filter((device) => !device.pinned);
 
-  const switches = extractSwitches(devices).filter(({ status }) => {
-    if (props.filter === DeviceOnlineFilterType.On) return status.value === true;
-    if (props.filter === DeviceOnlineFilterType.Off) return status.value === false;
-    return true;
-  });
+  const pinned = devices.filter((device) => device.pinned);
+  const rest = devices.filter((device) => !device.pinned);
 
-  const isSwitchPinned = ({ device, status }: { device: Device; status: FunctionItem }) =>
-    props.pinnedSwitches.includes(switchKey(device.id, status.code));
+  const controls = rest.filter((device) => classifyDevice(device) === "control");
+  const sensors = rest.filter((device) => classifyDevice(device) === "sensor");
+  const locks = rest.filter((device) => classifyDevice(device) === "lock");
 
-  const pinnedSwitches = switches.filter(isSwitchPinned);
-  const unpinnedSwitches = switches.filter((entry) => !isSwitchPinned(entry));
+  const isEmpty = devices.length === 0;
 
   return (
     <List
@@ -54,162 +157,47 @@ export function DeviceList(props: DeviceListProps): JSX.Element {
       searchBarAccessory={props.searchBarAccessory}
       onSearchTextChange={props.onSearchTextChange}
       isLoading={props.isLoading}
-      isShowingDetail
+      isShowingDetail={!isEmpty}
     >
-      {(pinnedSwitches.length > 0 || pinnedDevices.length > 0) && (
-        <List.Section title="Pinned">
-          {pinnedSwitches.map(({ device, status }) => (
-            <SwitchListItem
-              key={switchKey(device.id, status.code)}
-              device={device}
-              command={status}
-              onAction={props.onAction}
-              isPinned={true}
-              onTogglePin={props.onTogglePinSwitch}
-            />
-          ))}
-          {pinnedDevices.map((device) => (
-            <DeviceListItem key={deviceKey(device)} device={device} onAction={props.onAction} />
+      {isEmpty && !props.isLoading && (
+        <List.EmptyView
+          icon={Icon.Plug}
+          title="No Devices"
+          description={
+            props.filter === DeviceOnlineFilterType.all
+              ? "Nothing came back from Tuya. Check that your app account is linked under Devices in the Tuya IoT Platform."
+              : "No device matches this filter."
+          }
+        />
+      )}
+      {pinned.length > 0 && (
+        <List.Section title="Pinned" subtitle={String(pinned.length)}>
+          {pinned.map((device) => (
+            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
           ))}
         </List.Section>
       )}
-      <List.Section title="Devices">
-        {unpinnedDevices.map((device) => (
-          <DeviceListItem key={deviceKey(device)} device={device} onAction={props.onAction} />
-        ))}
-      </List.Section>
-      <List.Section title="Switches">
-        {unpinnedSwitches.map(({ device, status }) => (
-          <SwitchListItem
-            key={switchKey(device.id, status.code)}
-            device={device}
-            command={status}
-            onAction={props.onAction}
-            isPinned={false}
-            onTogglePin={props.onTogglePinSwitch}
-          />
-        ))}
-      </List.Section>
+      {controls.length > 0 && (
+        <List.Section title="Controls" subtitle={String(controls.length)}>
+          {controls.map((device) => (
+            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+          ))}
+        </List.Section>
+      )}
+      {sensors.length > 0 && (
+        <List.Section title="Sensors" subtitle={String(sensors.length)}>
+          {sensors.map((device) => (
+            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+          ))}
+        </List.Section>
+      )}
+      {locks.length > 0 && (
+        <List.Section title="Locks" subtitle={String(locks.length)}>
+          {locks.map((device) => (
+            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+          ))}
+        </List.Section>
+      )}
     </List>
-  );
-}
-
-export function SwitchListItem(props: {
-  command: FunctionItem;
-  device: Device;
-  onAction: (device: Device) => void;
-  isPinned: boolean;
-  onTogglePin: (deviceId: string, commandCode: string) => void;
-}): JSX.Element {
-  const { command, device } = props;
-
-  return (
-    <List.Item
-      title={command.name ?? command.code}
-      accessories={[{ text: device.name }]}
-      icon={{ source: Icon.Circle, tintColor: command.value ? Color.Green : Color.Red }}
-      detail={
-        <List.Item.Detail
-          metadata={
-            <List.Item.Detail.Metadata>
-              <List.Item.Detail.Metadata.Label title="Device Information" />
-              <List.Item.Detail.Metadata.Label title="Name" text={device.name} />
-              <List.Item.Detail.Metadata.Label title="Category" text={device.category} />
-              <List.Item.Detail.Metadata.Label title="Id" text={device.id} />
-              <List.Item.Detail.Metadata.Label title="Status" text={device.online ? "Online" : "Offline"} />
-              <List.Item.Detail.Metadata.Separator />
-              <List.Item.Detail.Metadata.Label title="Switch Information" />
-              <List.Item.Detail.Metadata.Label title="Code" text={command.code} />
-              <List.Item.Detail.Metadata.Label title="Value" text={command.value?.toString()} />
-            </List.Item.Detail.Metadata>
-          }
-        />
-      }
-      actions={
-        <CommandActionPanel
-          command={command}
-          device={device}
-          onTogglePinSwitch={props.onTogglePin}
-          isPinned={props.isPinned}
-          onAction={({ command: updated }) => props.onAction(withUpdatedStatus(device, updated))}
-        />
-      }
-    />
-  );
-}
-
-export function DeviceListItem(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
-  const device = props.device;
-  const tintColor = device.online ? Color.Green : Color.Red;
-  const tooltip = device.online ? "Online" : "Offline";
-
-  return (
-    <List.Item
-      title={device.name}
-      accessories={[{ text: device.category }]}
-      icon={{ value: { source: Icon.Desktop, tintColor }, tooltip }}
-      detail={
-        <List.Item.Detail
-          metadata={
-            <List.Item.Detail.Metadata>
-              <List.Item.Detail.Metadata.Label title="General Information" />
-              <List.Item.Detail.Metadata.Label title="Id" text={device.id} />
-              <List.Item.Detail.Metadata.Label title="Status" text={device.online ? "Online" : "Offline"} />
-              <List.Item.Detail.Metadata.Label title="Product Name" text={device.product_name} />
-              <List.Item.Detail.Metadata.Separator />
-              <List.Item.Detail.Metadata.Label title="Time Information" />
-              <List.Item.Detail.Metadata.Label title="Active Time" text={formatActiveTime(device.active_time)} />
-              <List.Item.Detail.Metadata.Separator />
-              <List.Item.Detail.Metadata.Label title="Statuses" />
-              {(device.status ?? []).map((status) => (
-                <List.Item.Detail.Metadata.Label
-                  key={status.code}
-                  title={status.name ?? status.code}
-                  text={status.value?.toString()}
-                />
-              ))}
-            </List.Item.Detail.Metadata>
-          }
-        />
-      }
-      actions={<DeviceActionPanel device={device} showDetails={true} onAction={props.onAction} />}
-    />
-  );
-}
-
-export function CommandList(props: CommandListProps): JSX.Element {
-  return (
-    <List>
-      {props.commands.map((command) => (
-        <CommandListItem
-          key={`${command.code}-${String(command.value)}`}
-          command={command}
-          device={props.device}
-          onAction={props.onAction}
-        />
-      ))}
-    </List>
-  );
-}
-
-export function CommandListItem(props: {
-  command: FunctionItem;
-  device: Device;
-  onAction: (device: Device) => void;
-}): JSX.Element {
-  const { command, device } = props;
-
-  return (
-    <List.Item
-      title={command.name ?? command.code}
-      icon={{ source: Icon.Circle, tintColor: command.value ? Color.Green : Color.Red }}
-      actions={
-        <CommandActionPanel
-          command={command}
-          device={device}
-          onAction={({ command: updated }) => props.onAction(withUpdatedStatus(device, updated))}
-        />
-      }
-    />
   );
 }

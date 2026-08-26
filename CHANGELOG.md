@@ -1,7 +1,19 @@
 # Tuya Smart Changelog
 
-## [Error Handling, Light Controls, Menu Bar and AI Tools] - {PR_MERGE_DATE}
+## [Redesigned List, Error Handling, Light Controls, Menu Bar and AI Tools] - {PR_MERGE_DATE}
 
+- Redesigned the device list. Devices are grouped by what they do (Controls, Sensors,
+  Locks) and each one now appears exactly once; sockets used to be listed twice, once
+  as a device and again as a bare "switch_1" row.
+- Readings are now formatted: a temperature that arrived as "294" reads as 29.4°C, a
+  contact sensor says Open or Closed instead of true or false, and battery level is
+  shown next to each device that has one.
+- Devices needing attention, such as a flat battery, are flagged in the list.
+- Encoded internal data points are hidden from the details view; a smart lock went from
+  22 rows of mostly base64 to the 11 that mean something.
+- Offline devices are now marked as such.
+- Device categories always show their readable name instead of codes like "cz".
+- Refreshing now takes one request for the whole account instead of one per device.
 - Tuya API failures are now reported instead of being swallowed. An expired IoT Core
   subscription previously showed an endless loading spinner or an empty device list
   with no explanation; it now shows what went wrong and what to do about it.

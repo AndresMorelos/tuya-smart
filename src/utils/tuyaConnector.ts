@@ -1,6 +1,6 @@
 import { TuyaContext } from "@tuya/tuya-connector-nodejs";
 import { getPreferenceValues } from "@raycast/api";
-import { Preferences, DevicesReponse, DeviceCategory, Device, DeviceFunctionsResult, Status } from "./interfaces";
+import { Preferences, DevicesReponse, DeviceCategory, Device, FunctionItem, Status } from "./interfaces";
 import { TuyaApiError } from "./errors";
 
 let cachedContext: TuyaContext | undefined;
@@ -77,13 +77,48 @@ export const sendCommand = async (props: { device_id: string; commands: Status[]
   return true;
 };
 
-export const getDeviceFunctionsInfo = async (device_id: string) => {
-  const result = await request<DeviceFunctionsResult>({
-    path: `/v1.0/devices/${device_id}/functions`,
-    method: "GET",
-  });
+interface DeviceFunctionGroup {
+  category: string;
+  devices: string[];
+  functions: FunctionItem[];
+}
 
-  return result?.functions ?? [];
+export const FUNCTIONS_BATCH_SIZE = 20;
+
+export function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+/**
+ * One request per 20 devices instead of one per device. Tuya groups the response by
+ * product category and lists which device ids share each instruction set.
+ * A chunk that fails degrades to no metadata for those devices rather than failing
+ * the whole refresh, because this data only enriches labels and ranges.
+ */
+export const getDevicesFunctions = async (deviceIds: string[]): Promise<Map<string, FunctionItem[]>> => {
+  const byDevice = new Map<string, FunctionItem[]>();
+
+  for (const batch of chunk(deviceIds, FUNCTIONS_BATCH_SIZE)) {
+    try {
+      const groups = await request<DeviceFunctionGroup[]>({
+        path: "/v1.0/devices/functions",
+        method: "GET",
+        query: { device_ids: batch.join(",") },
+      });
+
+      for (const group of groups ?? []) {
+        for (const id of group.devices ?? []) {
+          byDevice.set(id, group.functions ?? []);
+        }
+      }
+    } catch {
+      // Labels and ranges are optional; the device list is still usable without them.
+    }
+  }
+
+  return byDevice;
 };
 
 export { TuyaApiError };

@@ -1,6 +1,5 @@
 import { showToast, Toast } from "@raycast/api";
 import { Device, DeviceCategories, DeviceCategory, FunctionItem } from "./interfaces";
-import { getDeviceFunctionsInfo } from "./tuyaConnector";
 import { isTuyaApiError } from "./errors";
 
 export const getCategory = (categories: DeviceCategory[], categoryCode: DeviceCategories): DeviceCategories => {
@@ -21,31 +20,36 @@ export const isPinned = (device: Device, oldDevices: Device[]) => {
   return false;
 };
 
-export const getDeviceFunctions = async (device: Device, oldDeviceInfo?: Device): Promise<FunctionItem[]> => {
-  const status = device.status ?? [];
+/** Tuya returns instruction names in Chinese for many products; those are not useful here. */
+const CJK = /[\u3400-\u9fff\u3040-\u30ff]/;
 
-  // A device whose instruction set cannot be read should still be listed, so this
-  // call degrades to the raw status instead of failing the whole device fetch.
-  let functions: FunctionItem[] = [];
-  try {
-    functions = await getDeviceFunctionsInfo(device.id);
-  } catch {
-    functions = [];
-  }
+export const isUsableName = (name?: string): boolean => Boolean(name && name.trim() && !CJK.test(name));
 
-  return status.map((statusItem) => {
+/**
+ * Merges the instruction set metadata onto the device's live status. `functions` is
+ * fetched once for the whole account rather than per device.
+ */
+export const getDeviceFunctions = (
+  device: Device,
+  oldDeviceInfo?: Device,
+  functions: FunctionItem[] = [],
+): FunctionItem[] => {
+  return (device.status ?? []).map((statusItem) => {
     const oldStatusInfo = oldDeviceInfo?.status?.find((old) => old.code === statusItem.code);
     const functionInfo = functions.find((info) => info.code === statusItem.code);
 
-    if (functionInfo) {
-      return {
-        ...functionInfo,
-        name: oldStatusInfo?.name ?? functionInfo.name,
-        value: statusItem.value,
-      };
-    }
+    const name = isUsableName(oldStatusInfo?.name)
+      ? oldStatusInfo?.name
+      : isUsableName(functionInfo?.name)
+        ? functionInfo?.name
+        : undefined;
 
-    return { ...statusItem, name: oldStatusInfo?.name ?? statusItem.name };
+    return {
+      ...statusItem,
+      type: functionInfo?.type ?? statusItem.type,
+      values: functionInfo?.values ?? statusItem.values,
+      ...(name ? { name } : {}),
+    };
   });
 };
 

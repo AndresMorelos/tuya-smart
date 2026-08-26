@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { Action, ActionPanel, Icon, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard, showToast, Toast } from "@raycast/api";
 import { ShowToastError } from "../utils/functions";
 import { Device, FunctionItem } from "../utils/interfaces";
 import { parseRange, percentToRaw, rawToPercent } from "../utils/lightFunctions";
@@ -16,30 +16,10 @@ export function DevicePinAction(props: { device: Device; onAction: (device: Devi
     <Action
       title={isPinned ? "Unpin Device" : "Pin Device"}
       icon={Icon.Pin}
-      shortcut={{ modifiers: ["cmd", "shift"], key: "p" }}
+      shortcut={Keyboard.Shortcut.Common.Pin}
       onAction={() => {
         props.onAction({ ...props.device, pinned: !isPinned });
         showToast(Toast.Style.Success, isPinned ? "Unpinned Device" : "Pinned Device", props.device.name);
-      }}
-    />
-  );
-}
-
-export function SwitchPinAction(props: {
-  deviceId: string;
-  commandCode: string;
-  isPinned: boolean;
-  onTogglePin: (deviceId: string, commandCode: string) => void;
-}): JSX.Element {
-  const { isPinned, onTogglePin, deviceId, commandCode } = props;
-  return (
-    <Action
-      title={isPinned ? "Unpin Switch" : "Pin Switch"}
-      icon={Icon.Pin}
-      shortcut={{ modifiers: ["opt", "shift"], key: "p" }}
-      onAction={() => {
-        onTogglePin(deviceId, commandCode);
-        showToast(Toast.Style.Success, isPinned ? "Unpinned Switch" : "Pinned Switch");
       }}
     />
   );
