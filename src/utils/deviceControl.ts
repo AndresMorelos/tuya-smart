@@ -28,7 +28,10 @@ export async function sendWithFallback(device: Device, command: FunctionItem, de
     await deps.cloud(device, command);
     return "cloud";
   } catch (cloudError) {
-    if (!isSubscriptionError(cloudError) || !deps.canLocal(device)) {
+    // A device the cloud cannot reach may still answer on the LAN, so a known-offline
+    // device earns a local attempt just as a lapsed subscription does.
+    const worthRetryingLocally = isSubscriptionError(cloudError) || device.online === false;
+    if (!worthRetryingLocally || !deps.canLocal(device)) {
       throw cloudError;
     }
 

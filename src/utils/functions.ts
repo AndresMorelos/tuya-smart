@@ -85,15 +85,15 @@ const LEGACY_PATTERNS: Array<[RegExp, string]> = [
   [/\b(28841105|28841002)\b/, CODE_MESSAGES[28841105]],
 ];
 
-export function ShowToastError(error: unknown) {
-  let message: string;
-
+/** The user-facing text for a failure, independent of how it gets displayed. */
+export function describeError(error: unknown): string {
   if (isTuyaApiError(error)) {
-    message = CODE_MESSAGES[error.code] ?? `Tuya API error ${error.code}: ${error.tuyaMessage}`;
-  } else {
-    const raw = error instanceof Error ? error.message : String(error ?? "Unknown error");
-    message = LEGACY_PATTERNS.find(([pattern]) => pattern.test(raw))?.[1] ?? raw;
+    return CODE_MESSAGES[error.code] ?? `Tuya API error ${error.code}: ${error.tuyaMessage}`;
   }
+  const raw = error instanceof Error ? error.message : String(error ?? "Unknown error");
+  return LEGACY_PATTERNS.find(([pattern]) => pattern.test(raw))?.[1] ?? raw;
+}
 
-  showToast(Toast.Style.Failure, "Tuya Smart", message);
+export function ShowToastError(error: unknown) {
+  showToast(Toast.Style.Failure, "Tuya Smart", describeError(error));
 }

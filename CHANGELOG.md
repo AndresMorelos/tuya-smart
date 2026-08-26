@@ -2,6 +2,11 @@
 
 ## [Redesigned List, Error Handling, Light Controls, Menu Bar and AI Tools] - {PR_MERGE_DATE}
 
+- The details side panel is now off by default and toggles with Cmd+Shift+D. It used
+  to be always open, which squeezed the list column and cut off the state, battery and
+  offline labels.
+- Fixed menu bar items appearing to do nothing when clicked. A menu bar command has no
+  view, so failures were being reported to a toast that could never be displayed.
 - Redesigned the device list. Devices are grouped by what they do (Controls, Sensors,
   Locks) and each one now appears exactly once; sockets used to be listed twice, once
   as a device and again as a bare "switch_1" row.
