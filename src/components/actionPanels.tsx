@@ -18,7 +18,12 @@ export function withUpdatedStatus(device: Device, command: FunctionItem): Device
   };
 }
 
-export function DeviceActionPanel(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
+export function DeviceActionPanel(props: {
+  device: Device;
+  onAction: (device: Device) => void;
+  isShowingDetail: boolean;
+  onToggleDetail: () => void;
+}): JSX.Element {
   const device = props.device;
   const switches = (device.status ?? []).filter(isSwitchStatus);
   const brightness = findBrightness(device);
@@ -41,6 +46,12 @@ export function DeviceActionPanel(props: { device: Device; onAction: (device: De
           />
         )}
         <Actions.DevicePinAction device={device} onAction={props.onAction} />
+        <Action
+          title={props.isShowingDetail ? "Hide Details" : "Show Details"}
+          icon={Icon.AppWindowSidebarRight}
+          shortcut={{ modifiers: ["cmd", "shift"], key: "d" }}
+          onAction={props.onToggleDetail}
+        />
       </ActionPanel.Section>
       {(brightness || colorTemp) && (
         <ActionPanel.Section title="Light">

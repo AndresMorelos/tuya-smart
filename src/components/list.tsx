@@ -24,6 +24,8 @@ export interface DeviceListProps {
   onSearchTextChange?: (q: string) => void;
   onAction: (device: Device) => void;
   filter: DeviceOnlineFilterType;
+  isShowingDetail: boolean;
+  onToggleDetail: () => void;
 }
 
 function batteryIcon(level: number) {
@@ -57,23 +59,35 @@ function rowIcon(device: Device) {
   };
 }
 
-function accessoriesFor(device: Device): List.Item.Accessory[] {
+function accessoriesFor(device: Device, compact: boolean): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [];
 
   for (const alarm of alarmsOf(device)) {
-    accessories.push({ tag: { value: alarm, color: Color.Red }, icon: Icon.Warning, tooltip: "Needs attention" });
+    accessories.push(
+      compact
+        ? { icon: { source: Icon.Warning, tintColor: Color.Red }, tooltip: alarm }
+        : { tag: { value: alarm, color: Color.Red }, icon: Icon.Warning, tooltip: "Needs attention" },
+    );
   }
 
   const summary = summaryOf(device);
-  if (summary) accessories.push({ text: summary });
+  if (summary) accessories.push({ text: summary, tooltip: summary });
 
   const battery = batteryOf(device);
   if (battery !== undefined) {
-    accessories.push({ icon: batteryIcon(battery), text: `${battery}%`, tooltip: "Battery" });
+    accessories.push(
+      compact
+        ? { icon: batteryIcon(battery), tooltip: `Battery ${battery}%` }
+        : { icon: batteryIcon(battery), text: `${battery}%`, tooltip: "Battery" },
+    );
   }
 
   if (!device.online) {
-    accessories.push({ tag: { value: "Offline", color: Color.SecondaryText }, tooltip: "Not reachable right now" });
+    accessories.push(
+      compact
+        ? { icon: { source: Icon.WifiDisabled, tintColor: Color.SecondaryText }, tooltip: "Offline" }
+        : { tag: { value: "Offline", color: Color.SecondaryText }, tooltip: "Not reachable right now" },
+    );
   }
 
   return accessories;
@@ -125,16 +139,30 @@ function DeviceDetail(props: { device: Device }): JSX.Element {
   );
 }
 
-export function DeviceRow(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
+export function DeviceRow(props: {
+  device: Device;
+  onAction: (device: Device) => void;
+  isShowingDetail: boolean;
+  onToggleDetail: () => void;
+}): JSX.Element {
   const device = props.device;
   return (
     <List.Item
       title={cleanName(device.name)}
       keywords={[String(device.category ?? ""), device.product_name ?? ""]}
       icon={rowIcon(device)}
-      accessories={accessoriesFor(device)}
-      detail={<DeviceDetail device={device} />}
-      actions={<DeviceActionPanel device={device} onAction={props.onAction} />}
+      // With the panel open the list column is narrow, so the accessories are trimmed
+      // back to the state that still fits.
+      accessories={accessoriesFor(device, props.isShowingDetail)}
+      detail={props.isShowingDetail ? <DeviceDetail device={device} /> : undefined}
+      actions={
+        <DeviceActionPanel
+          device={device}
+          onAction={props.onAction}
+          isShowingDetail={props.isShowingDetail}
+          onToggleDetail={props.onToggleDetail}
+        />
+      }
     />
   );
 }
@@ -157,7 +185,7 @@ export function DeviceList(props: DeviceListProps): JSX.Element {
       searchBarAccessory={props.searchBarAccessory}
       onSearchTextChange={props.onSearchTextChange}
       isLoading={props.isLoading}
-      isShowingDetail={!isEmpty}
+      isShowingDetail={props.isShowingDetail && !isEmpty}
     >
       {isEmpty && !props.isLoading && (
         <List.EmptyView
@@ -173,28 +201,52 @@ export function DeviceList(props: DeviceListProps): JSX.Element {
       {pinned.length > 0 && (
         <List.Section title="Pinned" subtitle={String(pinned.length)}>
           {pinned.map((device) => (
-            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+            <DeviceRow
+              key={deviceKey(device)}
+              device={device}
+              onAction={props.onAction}
+              isShowingDetail={props.isShowingDetail}
+              onToggleDetail={props.onToggleDetail}
+            />
           ))}
         </List.Section>
       )}
       {controls.length > 0 && (
         <List.Section title="Controls" subtitle={String(controls.length)}>
           {controls.map((device) => (
-            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+            <DeviceRow
+              key={deviceKey(device)}
+              device={device}
+              onAction={props.onAction}
+              isShowingDetail={props.isShowingDetail}
+              onToggleDetail={props.onToggleDetail}
+            />
           ))}
         </List.Section>
       )}
       {sensors.length > 0 && (
         <List.Section title="Sensors" subtitle={String(sensors.length)}>
           {sensors.map((device) => (
-            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+            <DeviceRow
+              key={deviceKey(device)}
+              device={device}
+              onAction={props.onAction}
+              isShowingDetail={props.isShowingDetail}
+              onToggleDetail={props.onToggleDetail}
+            />
           ))}
         </List.Section>
       )}
       {locks.length > 0 && (
         <List.Section title="Locks" subtitle={String(locks.length)}>
           {locks.map((device) => (
-            <DeviceRow key={deviceKey(device)} device={device} onAction={props.onAction} />
+            <DeviceRow
+              key={deviceKey(device)}
+              device={device}
+              onAction={props.onAction}
+              isShowingDetail={props.isShowingDetail}
+              onToggleDetail={props.onToggleDetail}
+            />
           ))}
         </List.Section>
       )}

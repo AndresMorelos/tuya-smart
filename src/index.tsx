@@ -13,6 +13,9 @@ import { DeviceOnlineFilterType, filterDevices } from "./utils/filters";
 export default function Command() {
   const [filter, setFilter] = useState(DeviceOnlineFilterType.all);
   const [isLoading, setIsLoading] = useState(true);
+  // Off by default: the side panel squeezes the list column and truncates the
+  // state, battery and offline accessories, which are the useful part at a glance.
+  const [isShowingDetail, setIsShowingDetail] = useCachedState<boolean>("showDetail", false);
   const [devices, setDevices] = useCachedState<Device[]>("devices", []);
   const [categories, setCategories] = useCachedState<DeviceCategory[]>("categories", []);
 
@@ -75,6 +78,8 @@ export default function Command() {
       searchBarPlaceholder={placeholder(filter)}
       searchBarAccessory={<DeviceOnlineFilterDropdown onSelect={setFilter} />}
       isLoading={isLoading}
+      isShowingDetail={isShowingDetail}
+      onToggleDetail={() => setIsShowingDetail((previous) => !previous)}
       filter={filter}
       onAction={(device) => {
         setDevices((prev) => (prev ?? []).map((oldDevice) => (device.id === oldDevice.id ? device : { ...oldDevice })));
