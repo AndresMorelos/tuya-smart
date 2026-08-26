@@ -1,4 +1,5 @@
-import { Action, Icon, showToast, Toast } from "@raycast/api";
+import type { JSX } from "react";
+import { Action, Icon, showToast, Toast, Keyboard } from "@raycast/api";
 import { sendCommand } from "../utils/tuyaConnector";
 import { Device, FunctionItem } from "../utils/interfaces";
 
@@ -48,9 +49,9 @@ export function BooleanCommand(props: {
   const isOn = props.command.value;
   return (
     <Action
-      title={isOn ? "Set Off" : "Set On"}
+      title={isOn ? "Set off" : "Set on"}
       icon={Icon.Pin}
-      shortcut={{ modifiers: ["cmd", "shift"], key: "o" }}
+      shortcut={Keyboard.Shortcut.Common.OpenWith}
       onAction={async () => {
         if (!isOn) {
           props.onAction(await onCommand(props.deviceId, props.command));
@@ -72,7 +73,7 @@ export function TextCommand(props: {
     <Action
       title={`Set ${props.value}`}
       icon={Icon.Pin}
-      shortcut={{ modifiers: ["cmd", "shift"], key: "o" }}
+      shortcut={Keyboard.Shortcut.Common.OpenWith}
       onAction={async () => {
         props.onAction(await sendTextCommand(props.deviceId, { ...props.command, value: props.value }));
       }}
@@ -82,7 +83,7 @@ export function TextCommand(props: {
 
 async function sendTextCommand(
   deviceId: string,
-  command: FunctionItem
+  command: FunctionItem,
 ): Promise<{ result: boolean; command: FunctionItem }> {
   showToast(Toast.Style.Animated, `Turning ${command.code} ${command.value}`);
 
@@ -102,7 +103,7 @@ async function sendTextCommand(
     }
     showToast(Toast.Style.Failure, `Send Text Command ${command.code} failed`);
     return { result: false, command };
-  } catch (err) {
+  } catch {
     showToast(Toast.Style.Failure, `Send Text Command ${command.code} failed`);
     return { result: false, command };
   }
@@ -128,7 +129,7 @@ async function onCommand(deviceId: string, command: FunctionItem): Promise<{ res
     }
     showToast(Toast.Style.Failure, `On Command ${command.code} failed`);
     return { result: false, command };
-  } catch (err) {
+  } catch {
     showToast(Toast.Style.Failure, `On Command ${command.code} failed`);
     return { result: false, command };
   }
@@ -136,7 +137,7 @@ async function onCommand(deviceId: string, command: FunctionItem): Promise<{ res
 
 async function offCommand(
   deviceId: string,
-  command: FunctionItem
+  command: FunctionItem,
 ): Promise<{ result: boolean; command: FunctionItem }> {
   showToast(Toast.Style.Animated, `Turning Off ${command.code}`);
 
@@ -157,7 +158,7 @@ async function offCommand(
     }
     showToast(Toast.Style.Failure, `On Command ${command.code} failed`);
     return { result: false, command };
-  } catch (err) {
+  } catch {
     showToast(Toast.Style.Failure, `Off Command ${command.code} failed`);
     return { result: false, command };
   }
@@ -169,7 +170,7 @@ async function pin(device: Device): Promise<Device> {
     device.pinned = true;
     showToast(Toast.Style.Success, `Pinned ${device.name}`);
     return device;
-  } catch (err) {
+  } catch {
     showToast(Toast.Style.Failure, `Pin ${device.name} failed`);
     return device;
   }
@@ -181,7 +182,7 @@ async function unpin(device: Device): Promise<Device> {
     device.pinned = false;
     showToast(Toast.Style.Success, `Unpinned ${device.name}`);
     return device;
-  } catch (err) {
+  } catch {
     showToast(Toast.Style.Failure, `Unpin ${device.name} failed`);
     return device;
   }

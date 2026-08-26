@@ -76,8 +76,8 @@ export default function Command() {
     filter === DeviceOnlineFilterType.Online
       ? devices.filter((device) => device.online)
       : filter === DeviceOnlineFilterType.Offline
-      ? devices.filter((device) => !device.online)
-      : devices;
+        ? devices.filter((device) => !device.online)
+        : devices;
 
   return (
     <DeviceList

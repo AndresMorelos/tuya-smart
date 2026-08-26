@@ -1,5 +1,5 @@
 import { Color, Icon, List } from "@raycast/api";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { timeConversion } from "../utils/functions";
 import { Device, FunctionItem } from "../utils/interfaces";
 import { CommandActionPanel, DeviceActionPanel } from "./actionPanels";
@@ -35,7 +35,7 @@ export function DeviceList(props: DeviceListProps): JSX.Element {
   const allSwitches = devices.flatMap((device) =>
     (device.status || [])
       .filter((status) => status.code.toLowerCase().startsWith("switch") && typeof status.value === "boolean")
-      .map((status) => ({ device, status }))
+      .map((status) => ({ device, status })),
   );
 
   // Filter switches based on On/Off filter
@@ -47,10 +47,10 @@ export function DeviceList(props: DeviceListProps): JSX.Element {
 
   // Separate pinned and unpinned switches
   const pinnedSwitches = filteredSwitches.filter(({ device, status }) =>
-    props.pinnedSwitches.includes(`${device.id}:${status.code}`)
+    props.pinnedSwitches.includes(`${device.id}:${status.code}`),
   );
   const unpinnedSwitches = filteredSwitches.filter(
-    ({ device, status }) => !props.pinnedSwitches.includes(`${device.id}:${status.code}`)
+    ({ device, status }) => !props.pinnedSwitches.includes(`${device.id}:${status.code}`),
   );
 
   return (
@@ -224,7 +224,6 @@ export function CommandListItem(props: {
   onAction: (device: Device) => void;
 }): JSX.Element {
   const [command, setCommand] = useState<FunctionItem>(props.command);
-  const [device] = useState<Device>(props.device); // Although device isn't used in render, keeping it consistent with valid logic if needed
 
   return (
     <List.Item

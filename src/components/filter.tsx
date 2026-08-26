@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { List } from "@raycast/api";
 
 export enum DeviceOnlineFilterType {
@@ -33,7 +34,7 @@ export function placeholder(filter: DeviceOnlineFilterType): string {
     filter === DeviceOnlineFilterType.all
       ? "Online & Offline"
       : filter === DeviceOnlineFilterType.Online
-      ? "Online"
-      : "Offline"
+        ? "Online"
+        : "Offline"
   } by name`;
 }

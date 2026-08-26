@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Device, FunctionItem } from "../utils/interfaces";
 import { CommandList } from "./list";
 

@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Action, ActionPanel, Icon } from "@raycast/api";
 import { Device, FunctionItem } from "../utils/interfaces";
 
