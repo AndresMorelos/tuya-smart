@@ -1,8 +1,9 @@
 import type { JSX } from "react";
-import { Action, Icon, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Icon, showToast, Toast } from "@raycast/api";
 import { sendCommand } from "../utils/tuyaConnector";
 import { ShowToastError } from "../utils/functions";
 import { Device, FunctionItem } from "../utils/interfaces";
+import { parseRange, percentToRaw, rawToPercent } from "../utils/lightFunctions";
 
 export type CommandResult = { result: boolean; command: FunctionItem };
 
@@ -109,4 +110,40 @@ async function applyCommand(deviceId: string, command: FunctionItem, label: stri
     ShowToastError(error);
     return { result: false, command };
   }
+}
+
+const LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+/**
+ * Integer data points such as brightness and colour temperature are exposed as
+ * percentages; the raw bounds are read from the device because they differ per product.
+ */
+export function LightLevelSubmenu(props: {
+  deviceId: string;
+  command: FunctionItem;
+  title: string;
+  icon: Icon;
+  onAction: (props: CommandResult) => void;
+}): JSX.Element {
+  const range = parseRange(props.command.values);
+  const currentRaw = typeof props.command.value === "number" ? props.command.value : range.min;
+  const currentPercent = rawToPercent(currentRaw, range);
+
+  return (
+    <ActionPanel.Submenu title={props.title} icon={props.icon}>
+      {LEVELS.map((percent) => (
+        <Action
+          key={percent}
+          title={percent === currentPercent ? `${percent}% (Current)` : `${percent}%`}
+          icon={percent === currentPercent ? Icon.Check : undefined}
+          onAction={async () => {
+            const raw = percentToRaw(percent, range);
+            props.onAction(
+              await applyCommand(props.deviceId, { ...props.command, value: raw }, `${props.title} ${percent}%`),
+            );
+          }}
+        />
+      ))}
+    </ActionPanel.Submenu>
+  );
 }
