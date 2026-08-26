@@ -39,7 +39,7 @@ export function DeviceActionPanel(props: {
         <ActionPanel.Section title="Light">
           {brightness && (
             <Actions.LightLevelSubmenu
-              deviceId={device.id}
+              device={device}
               command={brightness}
               title="Brightness"
               icon={Icon.Sun}
@@ -48,7 +48,7 @@ export function DeviceActionPanel(props: {
           )}
           {colorTemp && (
             <Actions.LightLevelSubmenu
-              deviceId={device.id}
+              device={device}
               command={colorTemp}
               title="Colour Temperature"
               icon={Icon.Temperature}
@@ -75,11 +75,11 @@ export function CommandActionPanel(props: {
     <ActionPanel>
       <ActionPanel.Section>
         {typeof commandValue === "boolean" && (
-          <Actions.BooleanCommand deviceId={deviceId} command={props.command} onAction={props.onAction} />
+          <Actions.BooleanCommand device={props.device} command={props.command} onAction={props.onAction} />
         )}
         {typeof commandValue === "string" && (
           <Actions.TextCommand
-            deviceId={deviceId}
+            device={props.device}
             command={props.command}
             value={commandValue}
             onAction={props.onAction}
@@ -87,7 +87,7 @@ export function CommandActionPanel(props: {
         )}
         {typeof commandValue === "number" && (
           <Actions.LightLevelSubmenu
-            deviceId={deviceId}
+            device={props.device}
             command={props.command}
             title={props.command.name ?? props.command.code}
             icon={Icon.Gauge}

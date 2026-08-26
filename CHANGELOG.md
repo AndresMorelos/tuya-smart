@@ -16,6 +16,9 @@
 - The rename form now opens with the current name instead of an empty field.
 - The details view of an unrecognised device category now lists its data points
   instead of rendering nothing.
+- Added local network control as a fallback: when the Tuya cloud is unavailable
+  because the IoT Core subscription has lapsed, the extension keeps working from its
+  cached device list and sends commands directly to devices on the same network.
 - Updated to Raycast API 2.0 and resolved outstanding axios security advisories.
 
 ## [Security Maintenance] - 2026-05-21

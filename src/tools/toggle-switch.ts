@@ -1,5 +1,5 @@
 import { Tool } from "@raycast/api";
-import { getDevices, sendCommand } from "../utils/tuyaConnector";
+import { controlDevice, loadDevicesWithFallback } from "../utils/deviceSource";
 import { findDeviceByName, findSwitchOnDevice } from "../utils/deviceLookup";
 
 type Input = {
@@ -15,7 +15,7 @@ type Input = {
 };
 
 async function resolve(input: Input) {
-  const devices = await getDevices();
+  const { devices } = await loadDevicesWithFallback();
   const device = findDeviceByName(devices, input.deviceName);
   if (!device) {
     throw new Error(`No device named "${input.deviceName}". Use the list-devices tool to see the available names.`);
@@ -44,10 +44,8 @@ export const confirmation: Tool.Confirmation<Input> = async (input) => {
 export default async function tool(input: Input) {
   const { device, target, nextValue } = await resolve(input);
 
-  await sendCommand({
-    device_id: device.id,
-    commands: [{ code: target.code, value: nextValue }],
-  });
+  const transport = await controlDevice(device, { ...target, value: nextValue });
+  const via = transport === "local" ? " over the local network" : "";
 
-  return `Turned ${nextValue ? "on" : "off"} "${target.name ?? target.code}" on ${device.name}.`;
+  return `Turned ${nextValue ? "on" : "off"} "${target.name ?? target.code}" on ${device.name}${via}.`;
 }

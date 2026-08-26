@@ -1,11 +1,14 @@
 import type { JSX } from "react";
 import { Action, ActionPanel, Icon, showToast, Toast } from "@raycast/api";
-import { sendCommand } from "../utils/tuyaConnector";
 import { ShowToastError } from "../utils/functions";
 import { Device, FunctionItem } from "../utils/interfaces";
 import { parseRange, percentToRaw, rawToPercent } from "../utils/lightFunctions";
+import { controlDevice } from "../utils/deviceSource";
+import { Transport } from "../utils/deviceControl";
 
 export type CommandResult = { result: boolean; command: FunctionItem };
+
+const viaSuffix = (transport: Transport) => (transport === "local" ? " (over the local network)" : "");
 
 export function DevicePinAction(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
   const isPinned = props.device.pinned;
@@ -43,7 +46,7 @@ export function SwitchPinAction(props: {
 }
 
 export function BooleanCommand(props: {
-  deviceId: string;
+  device: Device;
   command: FunctionItem;
   onAction: (props: CommandResult) => void;
 }): JSX.Element {
@@ -55,14 +58,14 @@ export function BooleanCommand(props: {
       title={isOn ? "Set off" : "Set on"}
       icon={isOn ? Icon.LightBulbOff : Icon.LightBulb}
       onAction={async () => {
-        props.onAction(await toggleCommand(props.deviceId, props.command, !isOn, label));
+        props.onAction(await runCommand(props.device, { ...props.command, value: !isOn }, label, !isOn ? "On" : "Off"));
       }}
     />
   );
 }
 
 export function TextCommand(props: {
-  deviceId: string;
+  device: Device;
   command: FunctionItem;
   value: string;
   onAction: (props: CommandResult) => void;
@@ -73,43 +76,10 @@ export function TextCommand(props: {
       title={`Set ${props.value}`}
       icon={Icon.Gear}
       onAction={async () => {
-        props.onAction(await applyCommand(props.deviceId, { ...props.command, value: props.value }, label));
+        props.onAction(await runCommand(props.device, { ...props.command, value: props.value }, label, props.value));
       }}
     />
   );
-}
-
-/** Sends a boolean data point and reports the direction actually requested. */
-async function toggleCommand(
-  deviceId: string,
-  command: FunctionItem,
-  nextValue: boolean,
-  label: string,
-): Promise<CommandResult> {
-  const direction = nextValue ? "On" : "Off";
-  showToast(Toast.Style.Animated, `Turning ${direction}`, label);
-
-  try {
-    await sendCommand({ device_id: deviceId, commands: [{ code: command.code, value: nextValue }] });
-    showToast(Toast.Style.Success, `Turned ${direction}`, label);
-    return { result: true, command: { ...command, value: nextValue } };
-  } catch (error) {
-    ShowToastError(error);
-    return { result: false, command };
-  }
-}
-
-async function applyCommand(deviceId: string, command: FunctionItem, label: string): Promise<CommandResult> {
-  showToast(Toast.Style.Animated, `Setting ${String(command.value)}`, label);
-
-  try {
-    await sendCommand({ device_id: deviceId, commands: [{ code: command.code, value: command.value }] });
-    showToast(Toast.Style.Success, `Set ${String(command.value)}`, label);
-    return { result: true, command };
-  } catch (error) {
-    ShowToastError(error);
-    return { result: false, command };
-  }
 }
 
 const LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
@@ -119,7 +89,7 @@ const LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
  * percentages; the raw bounds are read from the device because they differ per product.
  */
 export function LightLevelSubmenu(props: {
-  deviceId: string;
+  device: Device;
   command: FunctionItem;
   title: string;
   icon: Icon;
@@ -139,11 +109,29 @@ export function LightLevelSubmenu(props: {
           onAction={async () => {
             const raw = percentToRaw(percent, range);
             props.onAction(
-              await applyCommand(props.deviceId, { ...props.command, value: raw }, `${props.title} ${percent}%`),
+              await runCommand(props.device, { ...props.command, value: raw }, props.title, `${percent}%`),
             );
           }}
         />
       ))}
     </ActionPanel.Submenu>
   );
+}
+
+async function runCommand(
+  device: Device,
+  command: FunctionItem,
+  label: string,
+  outcome: string,
+): Promise<CommandResult> {
+  showToast(Toast.Style.Animated, `Setting ${outcome}`, label);
+
+  try {
+    const transport = await controlDevice(device, command);
+    showToast(Toast.Style.Success, `Set ${outcome}${viaSuffix(transport)}`, label);
+    return { result: true, command };
+  } catch (error) {
+    ShowToastError(error);
+    return { result: false, command };
+  }
 }

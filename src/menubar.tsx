@@ -1,6 +1,6 @@
 import { Color, Icon, MenuBarExtra, launchCommand, LaunchType } from "@raycast/api";
 import { useCachedPromise, useCachedState } from "@raycast/utils";
-import { getDevices, sendCommand } from "./utils/tuyaConnector";
+import { controlDevice, loadDevicesWithFallback } from "./utils/deviceSource";
 import { ShowToastError } from "./utils/functions";
 import { Device } from "./utils/interfaces";
 import { extractSwitches, switchKey } from "./utils/filters";
@@ -10,13 +10,13 @@ export default function MenuBarCommand() {
   const [cachedDevices] = useCachedState<Device[]>("devices", []);
 
   // Shows whatever the main command last cached, then revalidates in the background.
-  const { data, isLoading, revalidate } = useCachedPromise(getDevices, [], {
-    initialData: cachedDevices ?? [],
+  const { data, isLoading, revalidate } = useCachedPromise(loadDevicesWithFallback, [], {
+    initialData: { devices: cachedDevices ?? [], source: "cache" as const },
     keepPreviousData: true,
     onError: ShowToastError,
   });
 
-  const devices = data ?? cachedDevices ?? [];
+  const devices = data?.devices ?? cachedDevices ?? [];
   const cachedNameFor = (deviceId: string, code: string) =>
     (cachedDevices ?? []).find((device) => device.id === deviceId)?.status?.find((status) => status.code === code)
       ?.name;
@@ -52,10 +52,7 @@ export default function MenuBarCommand() {
               icon={{ source: Icon.Circle, tintColor: status.value ? Color.Green : Color.Red }}
               onAction={async () => {
                 try {
-                  await sendCommand({
-                    device_id: device.id,
-                    commands: [{ code: status.code, value: !status.value }],
-                  });
+                  await controlDevice(device, { ...status, value: !status.value });
                   revalidate();
                 } catch (error) {
                   ShowToastError(error);

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useCachedState } from "@raycast/utils";
-import { getDevices, getCategories } from "./utils/tuyaConnector";
+import { showToast, Toast } from "@raycast/api";
+import { getCategories } from "./utils/tuyaConnector";
+import { loadDevicesWithFallback } from "./utils/deviceSource";
 import { DeviceCategory, Device } from "./utils/interfaces";
 import { DeviceList } from "./components/list";
 import { getCategory, getDeviceFunctions, isPinned, ShowToastError } from "./utils/functions";
@@ -18,26 +20,21 @@ export default function Command() {
   const devicesRef = useRef(devices);
   devicesRef.current = devices;
 
+  // Categories only translate a code into a display name, so a failure here must not
+  // stop the device list from loading.
   useEffect(() => {
     getCategories()
       .then((result) => setCategories(result ?? []))
-      .catch((error) => {
-        setIsLoading(false);
-        ShowToastError(error);
-      });
+      .catch(() => setCategories((previous) => previous ?? []));
   }, []);
 
   useEffect(() => {
-    if (!categories || categories.length === 0) {
-      return;
-    }
-
-    const getAllDevices = async () => {
-      const newDevicesInfo = await getDevices();
+    const load = async () => {
+      const { devices: fetched, source } = await loadDevicesWithFallback();
       const previousDevices = devicesRef.current ?? [];
 
-      const devicesPopulated = await Promise.all(
-        newDevicesInfo.map(async (device) => ({
+      const populated = await Promise.all(
+        fetched.map(async (device) => ({
           ...device,
           status: await getDeviceFunctions(
             device,
@@ -46,25 +43,32 @@ export default function Command() {
         })),
       );
 
-      setDevices((prev) =>
-        devicesPopulated.map((device) => ({
-          ...device,
-          pinned: isPinned(device, prev ?? []),
-          category: getCategory(categories, device.category),
-        })),
-      );
+      setDevices((prev) => populated.map((device) => ({ ...device, pinned: isPinned(device, prev ?? []) })));
       setIsLoading(false);
+
+      if (source === "cache") {
+        showToast(
+          Toast.Style.Failure,
+          "Showing Cached Devices",
+          "The Tuya cloud is unavailable, so commands will be sent over the local network where possible.",
+        );
+      }
     };
 
-    getAllDevices().catch((error) => {
+    load().catch((error) => {
       setIsLoading(false);
       ShowToastError(error);
     });
-  }, [categories]);
+  }, []);
+
+  const visible = filterDevices(devices ?? [], filter).map((device) => ({
+    ...device,
+    category: getCategory(categories ?? [], device.category),
+  }));
 
   return (
     <DeviceList
-      devices={filterDevices(devices ?? [], filter)}
+      devices={visible}
       searchBarPlaceholder={placeholder(filter)}
       searchBarAccessory={<DeviceOnlineFilterDropdown onSelect={setFilter} />}
       isLoading={isLoading}

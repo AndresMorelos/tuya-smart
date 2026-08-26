@@ -1,4 +1,4 @@
-import { getDevices } from "../utils/tuyaConnector";
+import { loadDevicesWithFallback } from "../utils/deviceSource";
 import { extractSwitches } from "../utils/filters";
 
 type Input = {
@@ -14,12 +14,12 @@ type Input = {
  * so a later call knows which device name and switch code to act on.
  */
 export default async function tool(input: Input) {
-  const devices = await getDevices();
+  const { devices, source } = await loadDevicesWithFallback();
   const needle = input.nameContains?.trim().toLowerCase();
 
   const filtered = needle ? devices.filter((device) => device.name.toLowerCase().includes(needle)) : devices;
 
-  return filtered.map((device) => ({
+  const listed = filtered.map((device) => ({
     id: device.id,
     name: device.name,
     category: device.category,
@@ -30,4 +30,10 @@ export default async function tool(input: Input) {
       isOn: status.value === true,
     })),
   }));
+
+  return {
+    // "cache" means the Tuya cloud was unreachable and this is the last known state.
+    source,
+    devices: listed,
+  };
 }

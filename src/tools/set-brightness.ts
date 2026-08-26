@@ -1,5 +1,5 @@
 import { Tool } from "@raycast/api";
-import { getDevices, sendCommand } from "../utils/tuyaConnector";
+import { controlDevice, loadDevicesWithFallback } from "../utils/deviceSource";
 import { findDeviceByName } from "../utils/deviceLookup";
 import { findBrightness, findColorTemp, parseRange, percentToRaw } from "../utils/lightFunctions";
 
@@ -16,7 +16,7 @@ type Input = {
 };
 
 async function resolve(input: Input) {
-  const devices = await getDevices();
+  const { devices } = await loadDevicesWithFallback();
   const device = findDeviceByName(devices, input.deviceName);
   if (!device) {
     throw new Error(`No device named "${input.deviceName}". Use the list-devices tool to see the available names.`);
@@ -48,10 +48,8 @@ export const confirmation: Tool.Confirmation<Input> = async (input) => {
 export default async function tool(input: Input) {
   const { device, target, raw, wantsColorTemp } = await resolve(input);
 
-  await sendCommand({
-    device_id: device.id,
-    commands: [{ code: target.code, value: raw }],
-  });
+  const transport = await controlDevice(device, { ...target, value: raw });
+  const via = transport === "local" ? " over the local network" : "";
 
-  return `Set ${wantsColorTemp ? "colour temperature" : "brightness"} on ${device.name} to ${input.percent}%.`;
+  return `Set ${wantsColorTemp ? "colour temperature" : "brightness"} on ${device.name} to ${input.percent}%${via}.`;
 }
