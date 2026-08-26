@@ -1,21 +1,21 @@
 import type { JSX } from "react";
-import { Action, Icon, showToast, Toast, Keyboard } from "@raycast/api";
+import { Action, Icon, showToast, Toast } from "@raycast/api";
 import { sendCommand } from "../utils/tuyaConnector";
+import { ShowToastError } from "../utils/functions";
 import { Device, FunctionItem } from "../utils/interfaces";
+
+export type CommandResult = { result: boolean; command: FunctionItem };
 
 export function DevicePinAction(props: { device: Device; onAction: (device: Device) => void }): JSX.Element {
   const isPinned = props.device.pinned;
   return (
     <Action
-      title={isPinned ? "Unpin" : "Pin"}
+      title={isPinned ? "Unpin Device" : "Pin Device"}
       icon={Icon.Pin}
       shortcut={{ modifiers: ["cmd", "shift"], key: "p" }}
-      onAction={async () => {
-        if (isPinned) {
-          props.onAction(await unpin(props.device));
-        } else {
-          props.onAction(await pin(props.device));
-        }
+      onAction={() => {
+        props.onAction({ ...props.device, pinned: !isPinned });
+        showToast(Toast.Style.Success, isPinned ? "Unpinned Device" : "Pinned Device", props.device.name);
       }}
     />
   );
@@ -44,20 +44,17 @@ export function SwitchPinAction(props: {
 export function BooleanCommand(props: {
   deviceId: string;
   command: FunctionItem;
-  onAction: (props: { result: boolean; command: FunctionItem }) => void;
+  onAction: (props: CommandResult) => void;
 }): JSX.Element {
-  const isOn = props.command.value;
+  const isOn = props.command.value === true;
+  const label = props.command.name ?? props.command.code;
+
   return (
     <Action
       title={isOn ? "Set off" : "Set on"}
-      icon={Icon.Pin}
-      shortcut={Keyboard.Shortcut.Common.OpenWith}
+      icon={isOn ? Icon.LightBulbOff : Icon.LightBulb}
       onAction={async () => {
-        if (!isOn) {
-          props.onAction(await onCommand(props.deviceId, props.command));
-        } else {
-          props.onAction(await offCommand(props.deviceId, props.command));
-        }
+        props.onAction(await toggleCommand(props.deviceId, props.command, !isOn, label));
       }}
     />
   );
@@ -67,123 +64,49 @@ export function TextCommand(props: {
   deviceId: string;
   command: FunctionItem;
   value: string;
-  onAction: (props: { result: boolean; command: FunctionItem }) => void;
+  onAction: (props: CommandResult) => void;
 }): JSX.Element {
+  const label = props.command.name ?? props.command.code;
   return (
     <Action
       title={`Set ${props.value}`}
-      icon={Icon.Pin}
-      shortcut={Keyboard.Shortcut.Common.OpenWith}
+      icon={Icon.Gear}
       onAction={async () => {
-        props.onAction(await sendTextCommand(props.deviceId, { ...props.command, value: props.value }));
+        props.onAction(await applyCommand(props.deviceId, { ...props.command, value: props.value }, label));
       }}
     />
   );
 }
 
-async function sendTextCommand(
+/** Sends a boolean data point and reports the direction actually requested. */
+async function toggleCommand(
   deviceId: string,
   command: FunctionItem,
-): Promise<{ result: boolean; command: FunctionItem }> {
-  showToast(Toast.Style.Animated, `Turning ${command.code} ${command.value}`);
+  nextValue: boolean,
+  label: string,
+): Promise<CommandResult> {
+  const direction = nextValue ? "On" : "Off";
+  showToast(Toast.Style.Animated, `Turning ${direction}`, label);
 
   try {
-    const result = await sendCommand({
-      device_id: deviceId,
-      commands: [
-        {
-          code: command.code,
-          value: command.value,
-        },
-      ],
-    });
-    if (result) {
-      showToast(Toast.Style.Success, `Turned ${command.code} ${command.value}`);
-      return { result: true, command };
-    }
-    showToast(Toast.Style.Failure, `Send Text Command ${command.code} failed`);
-    return { result: false, command };
-  } catch {
-    showToast(Toast.Style.Failure, `Send Text Command ${command.code} failed`);
+    await sendCommand({ device_id: deviceId, commands: [{ code: command.code, value: nextValue }] });
+    showToast(Toast.Style.Success, `Turned ${direction}`, label);
+    return { result: true, command: { ...command, value: nextValue } };
+  } catch (error) {
+    ShowToastError(error);
     return { result: false, command };
   }
 }
 
-async function onCommand(deviceId: string, command: FunctionItem): Promise<{ result: boolean; command: FunctionItem }> {
-  showToast(Toast.Style.Animated, `Turning On ${command.code}`);
+async function applyCommand(deviceId: string, command: FunctionItem, label: string): Promise<CommandResult> {
+  showToast(Toast.Style.Animated, `Setting ${String(command.value)}`, label);
 
   try {
-    const result = await sendCommand({
-      device_id: deviceId,
-      commands: [
-        {
-          code: command.code,
-          value: !command.value,
-        },
-      ],
-    });
-    if (result) {
-      command.value = !command.value;
-      showToast(Toast.Style.Success, `Turned On ${command.code}`);
-      return { result: true, command };
-    }
-    showToast(Toast.Style.Failure, `On Command ${command.code} failed`);
+    await sendCommand({ device_id: deviceId, commands: [{ code: command.code, value: command.value }] });
+    showToast(Toast.Style.Success, `Set ${String(command.value)}`, label);
+    return { result: true, command };
+  } catch (error) {
+    ShowToastError(error);
     return { result: false, command };
-  } catch {
-    showToast(Toast.Style.Failure, `On Command ${command.code} failed`);
-    return { result: false, command };
-  }
-}
-
-async function offCommand(
-  deviceId: string,
-  command: FunctionItem,
-): Promise<{ result: boolean; command: FunctionItem }> {
-  showToast(Toast.Style.Animated, `Turning Off ${command.code}`);
-
-  try {
-    const result = await sendCommand({
-      device_id: deviceId,
-      commands: [
-        {
-          code: command.code,
-          value: !command.value,
-        },
-      ],
-    });
-    if (result) {
-      command.value = !command.value;
-      showToast(Toast.Style.Success, `Turned On ${command.code}`);
-      return { result: true, command };
-    }
-    showToast(Toast.Style.Failure, `On Command ${command.code} failed`);
-    return { result: false, command };
-  } catch {
-    showToast(Toast.Style.Failure, `Off Command ${command.code} failed`);
-    return { result: false, command };
-  }
-}
-
-async function pin(device: Device): Promise<Device> {
-  showToast(Toast.Style.Animated, `Pinning ${device.name}`);
-  try {
-    device.pinned = true;
-    showToast(Toast.Style.Success, `Pinned ${device.name}`);
-    return device;
-  } catch {
-    showToast(Toast.Style.Failure, `Pin ${device.name} failed`);
-    return device;
-  }
-}
-
-async function unpin(device: Device): Promise<Device> {
-  showToast(Toast.Style.Animated, `Unpinning ${device.name}`);
-  try {
-    device.pinned = false;
-    showToast(Toast.Style.Success, `Unpinned ${device.name}`);
-    return device;
-  } catch {
-    showToast(Toast.Style.Failure, `Unpin ${device.name} failed`);
-    return device;
   }
 }
