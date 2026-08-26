@@ -15,7 +15,7 @@
         <li><a href="#get-authorization-key">Get authorization key</a></li>
       </ul>
     </li>
-    <li><a href="#Throubleshooting">Throubleshooting</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
   </ol>
 </details>
 
@@ -55,7 +55,7 @@
 Click the created project to enter the `Project Overview` page and get the `Authorization Key`. You will need these for setting up the integration. in the next step.
 <img src="https://github.com/AndresMorelos/raycast-extensions/blob/tuya-smart-extension/extensions/tuya-smart/assets/auth_key.png?raw=true">
 
-## Throubleshooting
+## Troubleshooting
 
 ### If no devices show up
 
@@ -76,6 +76,8 @@ Incorrect Access ID or Access Secret. Please refer to the Configuration part abo
 ---
 
 ### 1106: permission deny
+
+- IoT Core subscription expired: the trial has to be extended roughly every six months on the Tuya IoT Platform under `Cloud` > `Cloud Services` > `IoT Core` > `My Subscriptions`. The extension reports this explicitly when it happens.
 
 - App account not linked with cloud project: On the Tuya IoT Platform, you have linked devices by using Tuya Smart or Smart Life app in your cloud project. For more information, see Link devices by app account.
 

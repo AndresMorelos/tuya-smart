@@ -1,5 +1,23 @@
 # Tuya Smart Changelog
 
+## [Error Handling, Light Controls, Menu Bar and AI Tools] - {PR_MERGE_DATE}
+
+- Tuya API failures are now reported instead of being swallowed. An expired IoT Core
+  subscription previously showed an endless loading spinner or an empty device list
+  with no explanation; it now shows what went wrong and what to do about it.
+- Added brightness and colour temperature control for light devices, using each
+  product's own reported range.
+- Added a menu bar command to toggle pinned switches without opening Raycast.
+- Added AI tools to list devices, toggle a switch, and set brightness by voice or chat.
+- Fixed the device details view showing a meaningless "Active Time".
+- Fixed devices with identical names hiding each other in the list.
+- Fixed the On/Off filter not applying to the devices section.
+- Fixed turning a switch off reporting that it had been turned on.
+- The rename form now opens with the current name instead of an empty field.
+- The details view of an unrecognised device category now lists its data points
+  instead of rendering nothing.
+- Updated to Raycast API 2.0 and resolved outstanding axios security advisories.
+
 ## [Security Maintenance] - 2026-05-21
 
 - Updated the extension to address security advisories.
