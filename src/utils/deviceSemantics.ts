@@ -36,6 +36,23 @@ const LOCK_CATEGORIES = new Set([
 
 const BATTERY_CODES = ["battery_percentage", "residual_electricity", "battery_percentage_1"];
 
+/** Replaces one data point without mutating the device held in state. */
+export function withUpdatedStatus(device: Device, command: FunctionItem): Device {
+  return {
+    ...device,
+    status: (device.status ?? []).map((status) => (status.code === command.code ? command : status)),
+  };
+}
+
+/**
+ * A command that failed must not leave its requested value behind. The device list is
+ * persisted, so writing an unapplied value means the UI keeps showing, across relaunches,
+ * a state the physical device never reached.
+ */
+export function applyCommandResult(device: Device, outcome: { result: boolean; command: FunctionItem }): Device {
+  return outcome.result ? withUpdatedStatus(device, outcome.command) : device;
+}
+
 export function isNoiseStatus(status: FunctionItem): boolean {
   if (NOISE_CODES.has(status.code)) return true;
   // Countdown timers sit at zero on every socket; they are only meaningful when running.
