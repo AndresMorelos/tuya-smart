@@ -40,6 +40,9 @@
   with no explanation; it now shows what went wrong and what to do about it.
 - Added brightness and colour temperature control for light devices, using each
   product's own reported range.
+- Restored the controls for data points that take one of a set of values: a curtain
+  offers Open, Stop and Close again, and a light its work modes. The options come
+  from the range each product reports rather than a list fixed per category.
 - Added a menu bar command to toggle pinned switches without opening Raycast.
 - Added AI tools to list devices, toggle a switch, and set brightness by voice or chat.
 - Fixed the device details view showing a meaningless "Active Time".
